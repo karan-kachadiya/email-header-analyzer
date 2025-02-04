@@ -1,0 +1,212 @@
+Email Header Analyzer - Detailed Explanation
+This Python script is designed to analyze email headers and log the extracted details into a text file. It provides insights into email authentication mechanisms like SPF, DKIM, and DMARC, helping to detect potential email spoofing or phishing attempts. Below is a breakdown of how the script works.
+
+1. Importing Required Modules
+
+python
+Copy
+Edit
+import os
+import sys
+import re
+import datetime
+from email import policy
+from email.parser import BytesParser
+os: Handles file and directory operations.
+sys: Handles command-line arguments and system exit.
+re: Provides regular expressions for searching authentication results.
+datetime: Used to generate timestamps for logging.
+email.policy and email.parser.BytesParser: Used to parse the email header from a given file.
+
+2. Function to Parse Email Headers
+
+python
+Copy
+Edit
+def parse_email_headers(file_path):
+    if not os.path.isfile(file_path):
+        print(f"Error: The file '{file_path}' does not exist.")
+        sys.exit(1)
+The function parse_email_headers(file_path) checks whether the given file exists. If the file is not found, it prints an error message and exits the program.
+python
+Copy
+Edit
+    with open(file_path, "rb") as f:
+        msg = BytesParser(policy=policy.default).parse(f)
+Opens the email file in binary mode ("rb") and parses the headers using BytesParser.
+python
+Copy
+Edit
+    headers = {
+        "From": msg.get("From"),
+        "To": msg.get("To"),
+        "Subject": msg.get("Subject", "No Subject"),
+        "Date": msg.get("Date"),
+        "Return-Path": msg.get("Return-Path"),
+        "Received": msg.get_all("Received", []),
+        "SPF": extract_auth_result(msg, "spf="),
+        "DKIM": extract_auth_result(msg, "dkim="),
+        "DMARC": extract_auth_result(msg, "dmarc="),
+    }
+Extracts key email headers:
+
+"From": Sender's email address.
+"To": Recipient's email address.
+"Subject": Subject of the email (defaults to "No Subject" if missing).
+"Date": Timestamp of when the email was sent.
+"Return-Path": The return address in case of bounced emails.
+"Received": List of received headers (mail transfer paths).
+"SPF", "DKIM", "DMARC": Extracted authentication results.
+Returns the collected headers dictionary.
+
+3. Extracting SPF, DKIM, and DMARC Results
+python
+Copy
+Edit
+def extract_auth_result(msg, auth_type):
+    auth_results = msg.get_all("Authentication-Results", [])
+Extracts all occurrences of Authentication-Results headers.
+python
+Copy
+Edit
+    for result in auth_results:
+        match = re.search(rf"{auth_type}(\w+)", result, re.IGNORECASE)
+        if match:
+            return match.group(1)
+Uses regular expressions (re.search) to find authentication results for SPF, DKIM, and DMARC.
+It searches for values like "spf=pass", "dkim=fail", etc.
+Returns the matched result (e.g., "pass", "fail", or "none").
+python
+Copy
+Edit
+    return "Not Found"
+If no result is found, it returns "Not Found".
+4. Saving the Extracted Headers to a Log File
+python
+Copy
+Edit
+def save_to_log(headers):
+    log_folder = "logs"  # Folder to store log files
+    log_file_path = os.path.join(log_folder, "email_analysis_log.txt")
+Defines a folder (logs) for storing log files.
+Sets log_file_path to "logs/email_analysis_log.txt".
+python
+Copy
+Edit
+    os.makedirs(log_folder, exist_ok=True)
+Creates the logs folder if it doesn’t already exist.
+python
+Copy
+Edit
+    current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+Gets the current date and time in a readable format.
+python
+Copy
+Edit
+    with open(log_file_path, "a") as log_file:
+        log_file.write(f"\nEmail Header Report - {current_time}\n")
+        log_file.write("=" * 80 + "\n")
+Opens the log file in append mode ("a").
+Writes the email report timestamp.
+Adds a separator (= * 80) for clarity.
+python
+Copy
+Edit
+        for key, value in headers.items():
+            log_file.write(f"{key}:\n")  # Header Key
+            if isinstance(value, list):
+                for item in value:
+                    log_file.write(f"  {item}\n")  # Each item in a new line
+            else:
+                log_file.write(f"  {value}\n")  # Single line value
+Loops through each header in the dictionary and writes it to the log file.
+If the header contains multiple values (e.g., Received headers), it writes each value on a new line.
+python
+Copy
+Edit
+        log_file.write("=" * 80 + "\n")
+Ends the report with a separator.
+python
+Copy
+Edit
+    print(f"Results saved to: {log_file_path}")
+Prints the location of the saved log file.
+5. Main Execution Block
+python
+Copy
+Edit
+if __name__ == "__main__":
+This ensures that the script runs only when executed directly.
+python
+Copy
+Edit
+    if len(sys.argv) < 2:
+        print("Usage: python email_header_analyzer.py <email_file>")
+        sys.exit(1)
+Checks whether a file path is provided as an argument.
+If not, it prints usage instructions and exits.
+python
+Copy
+Edit
+    email_file = sys.argv[1]
+Retrieves the email file name from the command line.
+python
+Copy
+Edit
+    headers = parse_email_headers(email_file)
+Calls parse_email_headers() to extract email headers.
+python
+Copy
+Edit
+    save_to_log(headers)
+Saves the extracted data into a log file.
+python
+Copy
+Edit
+    print("Processing completed. Check the 'logs' folder for the results.")
+Displays a message indicating successful completion.
+6. Expected Output
+Console Output
+vbnet
+Copy
+Edit
+Results saved to: logs/email_analysis_log.txt
+Processing completed. Check the 'logs' folder for the results.
+Log File (logs/email_analysis_log.txt)
+vbnet
+Copy
+Edit
+Email Header Report - 2025-02-04 14:30:15
+================================================================================
+From:
+  sender@example.com
+To:
+  recipient@example.com
+Subject:
+  Important Notice
+Date:
+  Tue, 04 Feb 2025 12:30:00 +0000
+Return-Path:
+  <bounces@example.com>
+Received:
+  from mail.example.com by smtp.example.net
+SPF:
+  pass
+DKIM:
+  fail
+DMARC:
+  pass
+================================================================================
+The log file stores:
+Sender and recipient details
+Email subject, date, and return path
+Received headers (mail server hops)
+SPF, DKIM, and DMARC authentication results
+Timestamps for tracking
+Enhancements & Possible Additions
+Spam Detection: Implement spam score analysis.
+IP Extraction: Extract sender and recipient IPs from Received headers.
+GUI Interface: Create a user-friendly interface for non-technical users.
+Email Content Analysis: Extract and analyze email body text for threats.
+Conclusion
+This tool provides a detailed email header analysis, which can help in email forensics, security monitoring, and spam detection. The structured logging ensures all data is stored in an organized way for later review. 🚀
